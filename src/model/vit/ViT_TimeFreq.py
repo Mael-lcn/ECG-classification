@@ -108,26 +108,33 @@ class ViT_TimeFreq(nn.Module):
                     nn.init.zeros_(m.bias)
 
     def log_spectrogram(self, x):
-        """
-        Raw ECG -> normalized log-spectrogram.
-
-        Args:
-            x: (batch, n_leads, n_samples)
-        Returns:
-            (batch, n_leads, freq_bins, time_frames)
-        """
         B, L, T = x.shape
-        x = x.reshape(B * L, T)
-        x = self.spectrogram(x) # (Batch*leads, freq, time)
-        x = torch.clamp(x, min=1e-10) # avoid log(0)
-        x = torch.log(x)
+        
+        # 1. Move the input to CPU
+        x_cpu = x.reshape(B * L, T).to('cpu', dtype=torch.float32)
+        
+        # 2. FORCE the spectrogram window to CPU (Fixes the current error)
+        self.spectrogram.to('cpu')
+        
+        # 3. Calculate on CPU (This will now work!)
+        spec_cpu = self.spectrogram(x_cpu) 
+        
+        # 4. Clean up and log
+        spec_cpu = torch.clamp(spec_cpu, min=1e-10)
+        spec_cpu = torch.log(spec_cpu)
 
-        # normalizes each lead's spectrogram independently
-        mean = x.mean(dim=(-2, -1), keepdim=True)
-        std = x.std(dim=(-2, -1), keepdim=True).clamp(min=1e-8)
-        x = (x - mean) / std
-        x = x.reshape(B, L, x.shape[-2], x.shape[-1]) # (B, leads, freq, time)
-        return x
+        # 5. Normalize
+        mean = spec_cpu.mean(dim=(-2, -1), keepdim=True)
+        std = spec_cpu.std(dim=(-2, -1), keepdim=True).clamp(min=1e-8)
+        spec_cpu = (spec_cpu - mean) / std
+        
+        # 6. Move back to the original device (GPU) for the ViT layers
+        x = spec_cpu.to(x.device)
+        
+        freq_dim, time_dim = x.shape[-2], x.shape[-1]
+        x = x.reshape(B, L, freq_dim, time_dim)
+        
+        return x.to(next(self.head.parameters()).dtype)
 
     def forward(self, x, **kwargs):
         """
