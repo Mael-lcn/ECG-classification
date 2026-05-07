@@ -174,7 +174,7 @@ def run(args):
 def main():
     shared_parser = get_shared_parser()
     parser = argparse.ArgumentParser(description="optimisation des seuils multivariée", parents=[shared_parser])
-    parser.add_argument('--val_data', default="../../../../output/final_data/val")
+    parser.add_argument('--val_data', default="../../../output/final_data/val")
     parser.add_argument('-c', '--checkpoint', default=None)
     parser.add_argument('--weights', default="../../ressources/weights_abbreviations.csv", help="PhysioNet weights.csv")
     args = parser.parse_args()

@@ -312,7 +312,7 @@ def run(args):
 def main():
     shared_parser = get_shared_parser()
     parser = argparse.ArgumentParser(description="Script d'évaluation finale", parents=[shared_parser])
-    parser.add_argument('--test_data', default="../../../../output/final_data/test", help="HDF5 test dataset directory")
+    parser.add_argument('--test_data', default="../../../output/final_data/test", help="HDF5 test dataset directory")
     parser.add_argument('-c', '--checkpoint', default=None, help="name of the checkpoint.pt file")
     parser.add_argument('--weights', default="../../ressources/weights_abbreviations.csv", help="PhysioNet weights.csv")
     parser.add_argument('--config_file', type=str, default=None, help="Name of the config file")

@@ -407,8 +407,8 @@ def run(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Script d'entraînement standard", parents=[get_shared_parser()])
-    parser.add_argument('--train_data', type=str, default="../../../../output/final_data/train")
-    parser.add_argument('--val_data', type=str, default="../../../../output/final_data/val")
+    parser.add_argument('--train_data', type=str, default="../../../output/final_data/train")
+    parser.add_argument('--val_data', type=str, default="../../../output/final_data/val")
 
     parser.add_argument('--epochs', type=int, default=60)
     parser.add_argument('--lr', type=float, default=1e-4)
