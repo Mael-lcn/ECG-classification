@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchaudio
+import torch.nn.functional as F
 
 from .vit_modules import PatchEmbed, TransformerBlock
 
@@ -110,31 +111,38 @@ class ViT_TimeFreq(nn.Module):
     def log_spectrogram(self, x):
         B, L, T = x.shape
         
-        # 1. Move the input to CPU
-        x_cpu = x.reshape(B * L, T).to('cpu', dtype=torch.float32)
+        # Flatten leads into batch
+        x_flat = x.reshape(B * L, T)
         
-        # 2. FORCE the spectrogram window to CPU (Fixes the current error)
+        # Optimization: Only move to CPU if we have to. 
+        # But for now, we keep your CPU-offload fix for the driver bug.
+        orig_device = x.device
+        x_cpu = x_flat.to('cpu', dtype=torch.float32)
         self.spectrogram.to('cpu')
         
-        # 3. Calculate on CPU (This will now work!)
-        spec_cpu = self.spectrogram(x_cpu) 
+        with torch.no_grad():
+            spec = self.spectrogram(x_cpu) 
+            spec = torch.clamp(spec, min=1e-10)
+            spec = torch.log(spec)
+            # Normalize
+            mean = spec.mean(dim=(-2, -1), keepdim=True)
+            std = spec.std(dim=(-2, -1), keepdim=True).clamp(min=1e-8)
+            spec = (spec - mean) / std
         
-        # 4. Clean up and log
-        spec_cpu = torch.clamp(spec_cpu, min=1e-10)
-        spec_cpu = torch.log(spec_cpu)
-
-        # 5. Normalize
-        mean = spec_cpu.mean(dim=(-2, -1), keepdim=True)
-        std = spec_cpu.std(dim=(-2, -1), keepdim=True).clamp(min=1e-8)
-        spec_cpu = (spec_cpu - mean) / std
-        
-        # 6. Move back to the original device (GPU) for the ViT layers
-        x = spec_cpu.to(x.device)
+        # Return to GPU
+        x = spec.to(orig_device)
         
         freq_dim, time_dim = x.shape[-2], x.shape[-1]
-        x = x.reshape(B, L, freq_dim, time_dim)
         
-        return x.to(next(self.head.parameters()).dtype)
+        # GEOMETRY CHECK: 
+        # If time_dim < patch_size, we must pad or the Conv2d will crash
+        ph, pw = self.patch_embed.patch_size
+        if time_dim < pw or freq_dim < ph:
+            pad_h = max(0, ph - freq_dim)
+            pad_w = max(0, pw - time_dim)
+            x = F.pad(x, (0, pad_w, 0, pad_h))
+            
+        return x.reshape(B, L, x.shape[-2], x.shape[-1])
 
     def forward(self, x, **kwargs):
         """

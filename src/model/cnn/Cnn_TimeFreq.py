@@ -74,15 +74,26 @@ class CNN_TimeFreq(nn.Module):
 
         # Apply spectrogram lead wise
         batch_size, n_leads, n_samples = x.shape
-        x = x.reshape(batch_size * n_leads, n_samples) # flatten
-        x = self.spectrogram(x) # (batch*n_leads, freq, time)  [0, 69055] 
+        device = x.device
 
-        x = torch.clamp(x, min=1e-10)       # prevent log(0) = -inf
+        x = x.reshape(batch_size * n_leads, n_samples)
 
-        x = torch.log(x)                     # compress to [-23, 11] 
-        mean = x.mean(dim=(-2, -1), keepdim=True)
-        std = x.std(dim=(-2, -1), keepdim=True).clamp(min=1e-8)
-        x = (x - mean) / std                 # normalize to mean=0, std=1
+        x = x.reshape(batch_size * n_leads, n_samples) # flatten for lead-wise spectrogram
+
+        # OFFLOAD SPECTROGRAM TO CPU TO AVOID CUDA DRIVER ERROR
+        x_cpu = x.to('cpu', dtype=torch.float32)
+        self.spectrogram.to('cpu') # (batch*n_leads, freq, time)  [0, 69055] 
+
+        with torch.no_grad():
+            x_spec = self.spectrogram(x_cpu)
+            x_spec = torch.clamp(x_spec, min=1e-10) # prevent log(0) = -inf
+            x_spec = torch.log(x_spec) # compress to [-23, 11] 
+            mean = x_spec.mean(dim=(-2, -1), keepdim=True)
+            std = x_spec.std(dim=(-2, -1), keepdim=True).clamp(min=1e-8)
+            x_spec = (x_spec - mean) / std # normalize to mean=0, std=1
+        
+        # Move processed spectrogram back to GPU
+        x = x_spec.to(device)
 
         x = x.reshape(batch_size, n_leads, x.shape[-2], x.shape[-1]) # (batch_size, n_leads, freq, time)
 
