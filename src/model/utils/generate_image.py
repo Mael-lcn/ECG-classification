@@ -192,7 +192,6 @@ if __name__ == "__main__":
     with h5py.File(file_path, 'r') as f:
         tracings = torch.from_numpy(f['tracings'][:10])
 
-    """
     images_tensor, _ = create_image_12leads_together(tracings, None, h, w)
 
     # Fusion des dimensions du lot et des segments pour l'exportation
@@ -216,4 +215,5 @@ if __name__ == "__main__":
         grid_input = flat_images[i].unsqueeze(1).float() / 255.0
         vutils.save_image(grid_input, f"../../../../output/img/check_dino_12channels_{i}.png", nrow=4, normalize=False)
 
+    """
     print(f"Verification terminee : echantillons sauvegardes depuis le tenseur de taille {images_tensor.shape}")

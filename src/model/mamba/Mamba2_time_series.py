@@ -20,7 +20,7 @@ class Mamba2_time_series(nn.Module):
         M2_dropout_rate=0.4
     ):
         super().__init__()
-        
+
         # projection initiale via cnn pour réduire la dimension temporelle par 4
         # noyaux larges au début (15) pour capter la morphologie des ondes
         self.input_proj = nn.Sequential(
